@@ -1,4 +1,4 @@
-yamlname: Solar Data Download
+name: Solar Data Download
 
 on:
   workflow_dispatch:
