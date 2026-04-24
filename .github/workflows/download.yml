@@ -1,0 +1,57 @@
+yamlname: Solar Data Download
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install pandas & requests
+        run: pip install requests pandas
+
+      - name: Run download script
+        run: |
+          python3 - << 'EOF'
+          import requests, pandas as pd, time
+
+          SERVICE_KEY = "c0bf6d6be6de78eabe26b5cb907f9603aa27fe8bde68b1735eda3836fc201946"
+          BASE_URL    = "https://api.data.go.kr/openapi/tn_pubr_public_solar_gen_flct_api"
+
+          all_rows, page = [], 1
+
+          while True:
+              res = requests.get(BASE_URL, params={
+                  "serviceKey": SERVICE_KEY,
+                  "type":       "json",
+                  "numOfRows":  1000,
+                  "pageNo":     page
+              }, timeout=30)
+
+              body = res.json()
+              items = (body.get("response", {})
+                           .get("body", {})
+                           .get("items", {})
+                           .get("item", []))
+
+              if not items:
+                  print(f"완료: 총 {len(all_rows)}건, {page-1}페이지")
+                  break
+
+              all_rows.extend(items if isinstance(items, list) else [items])
+              print(f"페이지 {page}: {len(items)}건 수집 (누적 {len(all_rows)}건)")
+              page += 1
+              time.sleep(0.2)
+
+          df = pd.DataFrame(all_rows)
+          df.to_csv("solar_full.csv", index=False, encoding="utf-8-sig")
+          print(f"저장 완료: {len(df)}행")
+          print("컬럼:", df.columns.tolist())
+          EOF
+
+      - name: Upload CSV as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: solar_full_csv
+          path: solar_full.csv
+          retention-days: 7
